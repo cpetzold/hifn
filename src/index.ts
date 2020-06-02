@@ -127,8 +127,10 @@ export const includes = curry2(<V>(coll: Collection<V>, x: V): boolean =>
   some((v: V) => x === v, coll)
 );
 
-export const thread = <V, R>(x: V, ...fns: Function[]) => {
-  return reduceArray((result: R, fn: Function) => fn(result), x, fns);
+type AnyFn = (...args: any[]) => any;
+
+export const thread = <V, R>(x: V, ...fns: AnyFn[]) => {
+  return reduceArray((result: R, fn: AnyFn) => fn(result), x, fns);
 };
 
 export const add = curry2((a: number, b: number): number => a + b);
@@ -149,6 +151,6 @@ export const flatten = <V>(arr: V[][] | V[] | V): V | V[] => {
   }
 };
 
-export const apply = curry2((fn: (...args: any[]) => any, ...args: any[]) =>
+export const apply = curry2((fn: AnyFn, ...args: any[]) =>
   fn.apply(null, flatten(args))
 );
