@@ -3,25 +3,42 @@ import { curry2, curry3 } from "@typed/curry";
 type Object<V> = { [k: string]: V };
 type Collection<V> = V[] | Object<V>;
 
-export const identity = <V>(x: V): V => x;
+export const identity = <V>(v: V): V => v;
 
-export const isTrue = (x: any): boolean => !!x;
+export const isTrue = <V>(v: V): boolean => !!v;
 
-export const not = (x: any): boolean => !x;
+export const not = <V>(v: V): boolean => !v;
 
-export const isArray = (x: any): boolean => Array.isArray(x);
+export const isArray = <V>(x: V): boolean => Array.isArray(x);
+
+export const hasKey = <V>(obj: Object<V>, k: string): boolean =>
+  obj.hasOwnProperty(k);
+
+export const eachObject = <V>(obj: Object<V>, fn: (x: [string, V]) => void) => {
+  for (const k in obj) {
+    if (hasKey(obj, k)) {
+      fn([k, obj[k]]);
+    }
+  }
+};
+
+export const eachArray = <V>(arr: V[], fn: (x: V) => void) => {
+  arr.forEach(fn);
+};
+
+export const push = curry2(<V>(arr: V[], item: V): number => {
+  return arr.push(item);
+});
 
 export const intoArray = <V>(obj: Object<V>): [string, V][] => {
-  let result: [string, V][] = [];
-  for (const k in obj) {
-    result.push([k, obj[k]]);
-  }
+  const result: [string, V][] = [];
+  eachObject(obj, push(result));
   return result;
 };
 
 export const assoc = <V>(obj: Object<V>, k: string, v: V): Object<V> => ({
   ...obj,
-  [k]: v
+  [k]: v,
 });
 
 export const intoObject = <V>(pairs: [string, V][]) => {
@@ -35,11 +52,9 @@ export const intoObject = <V>(pairs: [string, V][]) => {
 const mapArray = curry2(<V, R>(fn: (x: V) => R, arr: V[]) => arr.map(fn));
 
 const mapObject = curry2(
-  <V, R>(fn: ((x: [string, V]) => R), obj: Object<V>): R[] => {
-    let result: R[] = [];
-    for (const k in obj) {
-      result.push((fn as (x: [string, V]) => R)([k, obj[k]]));
-    }
+  <V, R>(fn: (x: [string, V]) => R, obj: Object<V>): R[] => {
+    const result: R[] = [];
+    eachObject(obj, (kv) => push(result, fn(kv)));
     return result;
   }
 );
@@ -51,7 +66,7 @@ export const map = curry2(
   ): R[] => {
     return isArray(coll)
       ? mapArray(fn as (x: V) => R, coll as V[])
-      : mapObject(fn as ((x: [string, V]) => R), coll as Object<V>);
+      : mapObject(fn as (x: [string, V]) => R, coll as Object<V>);
   }
 );
 
@@ -60,10 +75,10 @@ const reduceArray = curry3(
 );
 
 const reduceObject = curry3(
-  <V, R>(fn: ((acc: R, x: [string, V]) => R), acc: R, obj: Object<V>): R => {
-    for (const k in obj) {
-      acc = fn(acc, [k, obj[k]]);
-    }
+  <V, R>(fn: (acc: R, x: [string, V]) => R, acc: R, obj: Object<V>): R => {
+    eachObject<V>(obj, (kv) => {
+      acc = fn(acc, kv);
+    });
     return acc;
   }
 );
@@ -76,14 +91,16 @@ export const reduce = curry3(
   ) => {
     return isArray(coll)
       ? reduceArray(fn as (acc: R, x: V) => R, acc, coll as V[])
-      : reduceObject(fn as (acc: R, x: [string, V]) => R, acc, coll as Object<
-          V
-        >);
+      : reduceObject(
+          fn as (acc: R, x: [string, V]) => R,
+          acc,
+          coll as Object<V>
+        );
   }
 );
 
-const someArray = curry2(
-  <V>(fn: (x: V) => boolean, arr: V[]): boolean => arr.some(fn)
+const someArray = curry2(<V>(fn: (x: V) => boolean, arr: V[]): boolean =>
+  arr.some(fn)
 );
 
 const someObject = curry2(
@@ -106,24 +123,24 @@ export const some = curry2(
   }
 );
 
-export const includes = curry2(
-  <V>(coll: Collection<V>, x: V): boolean => some((v: any) => x === v, coll)
+export const includes = curry2(<V>(coll: Collection<V>, x: V): boolean =>
+  some((v: V) => x === v, coll)
 );
 
-export const thread = (x: any, ...fns: Function[]) => {
-  return reduceArray((result: any, fn: Function) => fn(result), x, fns);
+export const thread = <V, R>(x: V, ...fns: Function[]) => {
+  return reduceArray((result: R, fn: Function) => fn(result), x, fns);
 };
 
 export const add = curry2((a: number, b: number): number => a + b);
 
 export const sum = (...xs: number[]): number => reduceArray(add, 0, xs);
 
-export const flatten = (arr: any): any => {
+export const flatten = <V>(arr: V[][] | V[] | V): V | V[] => {
   if (!isArray(arr)) {
-    return arr;
+    return arr as V;
   } else {
     return reduceArray(
-      (result: any[], x: any): any => {
+      (result: V[][] | V[], x: V[] | V): any => {
         return [...result, ...flatten(x)];
       },
       [],
@@ -132,6 +149,6 @@ export const flatten = (arr: any): any => {
   }
 };
 
-export const apply = curry2((fn: Function, ...args: any[]) =>
+export const apply = curry2((fn: (...args: any[]) => any, ...args: any[]) =>
   fn.apply(null, flatten(args))
 );
